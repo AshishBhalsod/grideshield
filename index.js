@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const sequelize = require('./config/db');
 const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/task');
+const staffRoutes = require('./routes/staff');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,6 +23,7 @@ app.use('/uploads', express.static(uploadsDir)); // Serve uploaded photos
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/staff', staffRoutes);
 
 // Test route
 app.get('/', (req, res) => {
