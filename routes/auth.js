@@ -1,7 +1,9 @@
 const express = require('express');
-   const { login } = require('../controllers/authController');
-   const router = express.Router();
+const router = express.Router();
+const authController = require('../controllers/authController');
+const restrictMethods = require('../middleware/restrictMethods');
 
-   router.post('/login', login);
+// Login route (POST only)
+router.all('/login', restrictMethods('POST'), authController.login);
 
-   module.exports = router;
+module.exports = router;

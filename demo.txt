@@ -1,0 +1,26 @@
+Admin Login = users
+Staf Login  = staff
+
+
+
+Task =  internal = status
+0 =  Peddding
+1 =  Processing
+2 = Waiting for Customer
+3 = Done
+4 = Close
+
+
+
+Task = internal
+Task  Comments = internal_comments
+Subject = internal to subject
+Created = internal to createdBy
+Due Date = internal to dueDate
+Assign To = internal to staff_id
+Created By  = internal to je login hoy aenu name aavse 
+Assign From = internal to koi b change kare aenu name 
+Changed By = internal to same as a assign from but full name 
+Change Time  = internal to change time 
+Inquiry Details = internal to inquiry_id
+
