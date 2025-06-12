@@ -55,6 +55,9 @@ exports.login = async (req, res) => {
             // Token payload
             tokenPayload = {
                 id: userData.id,
+                firstname: userData.firstname,
+                middlename: userData.middlename,
+                lastname: userData.lastname,
                 username: userData.username,
                 usertype: 'users',
             };
@@ -72,9 +75,9 @@ exports.login = async (req, res) => {
             // Prepare staff details directly for data object
             userData = {
                 id: userData.id,
-                firstname: userData.first_name,
-                middlename: userData.middle_name || '',
-                lastname: userData.last_name,
+                firstname: userData.firstname,
+                middlename: userData.middlename || '',
+                lastname: userData.lastname,
                 contact: userData.contact,
                 email: userData.email,
                 staff_email: userData.staff_email,
@@ -85,6 +88,10 @@ exports.login = async (req, res) => {
             tokenPayload = {
                 id: userData.id,
                 email: userData.email,
+                firstname: userData.firstname,
+                middlename: userData.middlename,
+                lastname: userData.lastname,
+                username: userData.username,
                 usertype: 'staff',
             };
         }
