@@ -6,12 +6,14 @@ const upload = require('../middleware/upload');
 const auth = require('../middleware/auth');
 
 
-// Task count route (GET only)
+// Task count route (POST only)
 router.all('/count',auth, restrictMethods('POST'), taskController.getTaskCounts);
 
 // Add task route (POST only)
 router.all('/add', upload,auth, restrictMethods('POST'), taskController.addTask);
-// Task list route (GET)
+// Task list route (POST)
 router.all('/task_list', auth, restrictMethods('POST'), taskController.getTaskList);
+// Task detail route (POST)
+router.all('/task_list_detail', auth, restrictMethods('POST'), taskController.getTaskDetail);
 
 module.exports = router;

@@ -1,5 +1,32 @@
-const { Internal,TaskInternalLogs } = require('../models');
+const { Internal,TaskInternalLogs, User, Staff } = require('../models');
 const path = require('path');
+
+
+
+
+// Helper function to fetch usernames
+const fetchUsernames = async (ids, userType) => {
+    if (!ids) return [];
+    const idArray = ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    if (idArray.length === 0) return [];
+
+    const Model = userType === 'staff' ? Staff : User;
+    const field = userType === 'staff' ? 'firstname' : 'username';
+    const users = await Model.findAll({
+        where: { id: idArray },
+        attributes: ['id', field],
+        raw: true,
+    });
+
+    return idArray.map(id => {
+        const user = users.find(u => u.id === id);
+        return {
+            id,
+            username: user ? user[field] : null
+        };
+    });
+};
+
 exports.getTaskCounts = async (req, res) => {
     try {
         // Query counts for each status
@@ -52,7 +79,6 @@ exports.getTaskCounts = async (req, res) => {
 
 
 exports.addTask = async (req, res) => {
-    console.log(req.user)
     try {
         // Validate empty body
         if (!req.body || Object.keys(req.body).length === 0) {
@@ -65,7 +91,7 @@ exports.addTask = async (req, res) => {
 
         // Extract form data
         const { subject, staff_id, name, dueDate, message, admin_id } = req.body;
-        const file = req.file;
+        const files = req.files; // Array of files
 
         // Validate required fields
         if (!subject || !staff_id || !dueDate || !message || !admin_id) {
@@ -95,64 +121,63 @@ exports.addTask = async (req, res) => {
             });
         }
 
-        // Validate file format if provided
-        let attachmentPath = null;
-        if (file) {
-            const allowedExtensions = [
-                '.jpg', '.jpeg', '.png', '.pdf',
-                '.doc', '.docx', '.xls', '.xlsx',
-                '.ppt', '.pptx', '.txt'
-            ];
-            const ext = path.extname(file.originalname).toLowerCase();
-            if (!allowedExtensions.includes(ext)) {
-                return res.status(400).json({
-                    status: false,
-                    message: 'Invalid file format. Allowed: JPG, PNG, PDF, DOC, XLS, PPT, TXT',
-                    data: {},
-                });
-            }
-            attachmentPath = `uploads/${file.filename}`;
+        // Process file paths
+        let attachmentPaths = [];
+        if (files && files.length > 0) {
+            attachmentPaths = files.map(file => `uploads/${file.filename}`);
         }
 
         // Create internal task
-        const task = await Internal.create({
-            subject,
-            staff_id,
-            companyName: name || null,
-            dueDate,
-            description: message,
-            status: 0,
-            inquiry_id: 0,
-            customer_id: parseInt(admin_id, 10),
-            admin_id: parseInt(admin_id, 10),
-            attachment: attachmentPath,
-        });
+        // const task = await Internal.create({
+        //     subject,
+        //     staff_id,
+        //     companyName: name || null,
+        //     dueDate,
+        //     description: message,
+        //     status: 0,
+        //     inquiry_id: 0,
+        //     customer_id: parseInt(admin_id, 10),
+        //     admin_id: parseInt(admin_id, 10),
+        //     attachment: attachmentPaths.length > 0 ? attachmentPaths : null,
+        // });
 
-        // Create task_internal_logs entry
-        await TaskInternalLogs.create({
-            internal_id: task.id,
-            is_created: req.user.firstname,
-            old_staff_id: staff_id,
-            new_staff_id: staff_id,
-            changed_by: req.user.firstname,
-        });
+        // // Create task_internal_logs entry
+        // await TaskInternalLogs.create({
+        //     internal_id: task.id,
+        //     is_created: req.user.firstname,
+        //     old_staff_id: staff_id,
+        //     new_staff_id: staff_id,
+        //     changed_by: req.user.firstname,
+        // });
 
         // Return response
         return res.status(201).json({
             status: true,
             message: 'Task added successfully',
-            data: {
-                id: task.id,
-                subject: task.subject,
-                staff_id: task.staff_id,
-                companyName: task.companyName,
-                dueDate: task.dueDate,
-                description: task.description,
-                attachment: task.attachment,
-            },
+            files
+            // data: {
+            //     id: task.id,
+            //     subject: task.subject,
+            //     staff_id: task.staff_id,
+            //     companyName: task.companyName,
+            //     dueDate: task.dueDate,
+            //     description: task.description,
+            //     attachment: task.attachment,
+            // },
         });
     } catch (error) {
-        console.error('Add task error:', error);
+        console.error('Add task error:', {
+            message: error.message,
+            stack: error.stack,
+            files: req.files ? req.files.map(f => f.originalname) : 'No files'
+        });
+        if (error.message.includes('Invalid file format')) {
+            return res.status(400).json({
+                status: false,
+                message: error.message,
+                data: {},
+            });
+        }
         return res.status(500).json({
             status: false,
             message: 'Server error',
@@ -230,6 +255,116 @@ exports.getTaskList = async (req, res) => {
             status: false,
             message: 'Server error',
             data: [],
+        });
+    }
+};
+
+
+
+exports.getTaskDetail = async (req, res) => {
+    try {
+        // Validate request body
+        if (!req.body || Object.keys(req.body).length === 0) {
+            return res.status(400).json({
+                status: false,
+                message: 'Request body is empty',
+                data: {},
+            });
+        }
+
+        const { task_id, userType } = req.body;
+
+        // Validate task_id
+        if (!task_id || !/^\d+$/.test(task_id) || task_id <= 0) {
+            return res.status(400).json({
+                status: false,
+                message: 'task_id is required and must be a positive integer',
+                data: {},
+            });
+        }
+
+        // Validate userType
+        if (!userType || !['staff', 'users'].includes(userType)) {
+            return res.status(400).json({
+                status: false,
+                message: 'userType is required and must be "staff" or "users"',
+                data: {},
+            });
+        }
+
+        // Status mapping
+        const statusMap = {
+            0: 'Pending',
+            1: 'Processing',
+            2: 'Waiting For Customer Task',
+            3: 'Done',
+            4: 'Close'
+        };
+
+        // Fetch task from internal table
+        const task = await Internal.findOne({
+            where: { id: task_id },
+            attributes: ['id', 'subject', 'status', 'dueDate', 'staff_id', 'description', 'attachment'],
+            raw: true,
+        });
+
+        if (!task) {
+            return res.status(404).json({
+                status: false,
+                message: 'Task not found',
+                data: {},
+            });
+        }
+
+        // Fetch usernames for assign_to
+        const assignTo = await fetchUsernames(task.staff_id, userType);
+
+        // Fetch logs from task_internal_logs
+        const logs = await TaskInternalLogs.findAll({
+            where: { internal_id: task_id },
+            attributes: ['is_created', 'changed_by', 'change_time', 'new_staff_id'],
+            order: [['change_time', 'ASC']],
+            raw: true,
+        });
+
+        // Fetch usernames for assign_to_staff (latest log)
+        const latestLog = logs[logs.length - 1];
+        let assignToStaff = [];
+        if (latestLog && latestLog.new_staff_id) {
+            assignToStaff = await fetchUsernames(latestLog.new_staff_id, userType);
+        }
+
+        // Prepare response data
+        const firstLog = logs[0] || null;
+        const taskDetail = {
+            subject: task.subject,
+            status: statusMap[task.status] || 'Unknown',
+            created_date: firstLog ? firstLog.change_time : null,
+            due_date: task.dueDate,
+            assign_to: assignTo,
+            assign_from: firstLog ? firstLog.is_created : null,
+            changed_by: latestLog ? latestLog.changed_by : null,
+            changed_time: latestLog ? latestLog.change_time : null,
+            assign_to_staff: assignToStaff,
+            comments_attachments: logs.map(log => ({
+                name: log.is_created,
+                comment: task.description,
+                comment_date: log.change_time,
+                attachments: task.attachment
+            }))
+        };
+
+        return res.status(200).json({
+            status: true,
+            message: 'Task details retrieved successfully',
+            data: taskDetail,
+        });
+    } catch (error) {
+        console.error('Get task detail error:', error);
+        return res.status(500).json({
+            status: false,
+            message: 'Server error',
+            data: {},
         });
     }
 };

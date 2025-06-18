@@ -49,8 +49,8 @@ const Internal = sequelize.define(
             type: DataTypes.DATE,
             defaultValue: DataTypes.NOW,
         },
-        attechment: {
-            type: DataTypes.STRING(255),
+       attachment: {
+            type: DataTypes.JSON, // Store ["path1", "path2"]
             allowNull: true,
         },
     },

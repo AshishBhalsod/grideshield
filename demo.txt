@@ -50,6 +50,20 @@
 
 
 
+now in this api we need to some modification 
+user also send userType:staff or users
+if user send users then we need to check users. table 
+if user send staff then we need to check staff table
+
+this above for find name  assign_to_staff and assign_to
+in. this. we get id of this user with comma seprated 
+we need to find name of this user from usertype
+we need to give in api username and
+
+
+
+
+
 
 
 
