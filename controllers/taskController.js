@@ -128,42 +128,41 @@ exports.addTask = async (req, res) => {
         }
 
         // Create internal task
-        // const task = await Internal.create({
-        //     subject,
-        //     staff_id,
-        //     companyName: name || null,
-        //     dueDate,
-        //     description: message,
-        //     status: 0,
-        //     inquiry_id: 0,
-        //     customer_id: parseInt(admin_id, 10),
-        //     admin_id: parseInt(admin_id, 10),
-        //     attachment: attachmentPaths.length > 0 ? attachmentPaths : null,
-        // });
+        const task = await Internal.create({
+            subject,
+            staff_id,
+            companyName: name || null,
+            dueDate,
+            description: message,
+            status: 0,
+            inquiry_id: 0,
+            customer_id: parseInt(admin_id, 10),
+            admin_id: parseInt(admin_id, 10),
+            attachment: attachmentPaths.length > 0 ? attachmentPaths : null,
+        });
 
-        // // Create task_internal_logs entry
-        // await TaskInternalLogs.create({
-        //     internal_id: task.id,
-        //     is_created: req.user.firstname,
-        //     old_staff_id: staff_id,
-        //     new_staff_id: staff_id,
-        //     changed_by: req.user.firstname,
-        // });
+        // Create task_internal_logs entry
+        await TaskInternalLogs.create({
+            internal_id: task.id,
+            is_created: req.user.firstname,
+            old_staff_id: staff_id,
+            new_staff_id: staff_id,
+            changed_by: req.user.firstname,
+        });
 
         // Return response
         return res.status(201).json({
             status: true,
             message: 'Task added successfully',
-            files
-            // data: {
-            //     id: task.id,
-            //     subject: task.subject,
-            //     staff_id: task.staff_id,
-            //     companyName: task.companyName,
-            //     dueDate: task.dueDate,
-            //     description: task.description,
-            //     attachment: task.attachment,
-            // },
+            data: {
+                id: task.id,
+                subject: task.subject,
+                staff_id: task.staff_id,
+                companyName: task.companyName,
+                dueDate: task.dueDate,
+                description: task.description,
+                attachment: task.attachment,
+            },
         });
     } catch (error) {
         console.error('Add task error:', {
