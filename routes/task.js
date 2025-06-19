@@ -15,5 +15,7 @@ router.all('/add', upload,auth, restrictMethods('POST'), taskController.addTask)
 router.all('/task_list', auth, restrictMethods('POST'), taskController.getTaskList);
 // Task detail route (POST)
 router.all('/task_list_detail', auth, restrictMethods('POST'), taskController.getTaskDetail);
+// Task  Edit
+router.all('/edit', upload, auth, restrictMethods('POST'), taskController.editTask);
 
 module.exports = router;

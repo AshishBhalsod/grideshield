@@ -1,8 +1,32 @@
-const { Internal,TaskInternalLogs, User, Staff } = require('../models');
+const { Internal,TaskInternalLogs, User, Staff ,InternalComments} = require('../models');
 const path = require('path');
 
 
+const statusMap = {
+    'Pending': 0,
+    'Processing': 1,
+    'Waiting For Customer Task': 2,
+    'Done': 3,
+    'Close': 4
+};
 
+const reverseStatusMap = {
+    0: 'Pending',
+    1: 'Processing',
+    2: 'Waiting For Customer Task',
+    3: 'Done',
+    4: 'Close'
+};
+
+const userTypeMap = {
+    'admin': 1,
+    'staff': 2
+};
+
+const reverseUserTypeMap = {
+    1: 'admin',
+    2: 'staff'
+};
 
 // Helper function to fetch usernames
 const fetchUsernames = async (ids, userType) => {
@@ -17,7 +41,7 @@ const fetchUsernames = async (ids, userType) => {
         attributes: ['id', field],
         raw: true,
     });
-
+console.log(users,idArray)
     return idArray.map(id => {
         const user = users.find(u => u.id === id);
         return {
@@ -349,7 +373,7 @@ exports.getTaskDetail = async (req, res) => {
                 name: log.is_created,
                 comment: task.description,
                 comment_date: log.change_time,
-                attachments: task.attachment
+                attachments: task.attachment ? JSON.parse(task.attachment)  : []
             }))
         };
 
@@ -360,6 +384,136 @@ exports.getTaskDetail = async (req, res) => {
         });
     } catch (error) {
         console.error('Get task detail error:', error);
+        return res.status(500).json({
+            status: false,
+            message: 'Server error',
+            data: {},
+        });
+    }
+};
+exports.editTask = async (req, res) => {
+    try {
+        if (!req.body || Object.keys(req.body).length === 0) {
+            return res.status(400).json({
+                status: false,
+                message: 'Request body is empty',
+                data: {},
+            });
+        }
+
+        const { task_id, status, due_date, staff_id, user_id, user_type, internal_id, comment } = req.body;
+        const files = req.files;
+
+        if (!task_id || !/^\d+$/.test(task_id) || task_id <= 0) {
+            return res.status(400).json({
+                status: false,
+                message: 'task_id is required and must be a positive integer',
+                data: {},
+            });
+        }
+
+        const task = await Internal.findOne({ where: { id: task_id } });
+        if (!task) {
+            return res.status(404).json({
+                status: false,
+                message: 'Task not found',
+                data: {},
+            });
+        }
+
+        const updates = {};
+
+        if (status && statusMap[status] !== undefined) {
+            updates.status = statusMap[status];
+        }
+
+        if (due_date) {
+            updates.dueDate = due_date;
+        }
+
+        if (staff_id) {
+            const staffIds = staff_id.split(',').map(id => id.trim());
+            if (!staffIds.every(id => /^\d+$/.test(id))) {
+                return res.status(400).json({
+                    status: false,
+                    message: 'staff_id must be comma-separated integers (e.g., "3,4")',
+                    data: {},
+                });
+            }
+            console.log(staffIds)
+            updates.staff_id = staff_id;
+        }
+
+        let commentId = null;
+        if (comment) {
+            if (!user_id || !/^\d+$/.test(user_id) || !user_type || !['staff', 'admin'].includes(user_type) || !internal_id || internal_id != task_id) {
+                return res.status(400).json({
+                    status: false,
+                    message: 'user_id, user_type (staff or admin), internal_id (matching task_id), and comment are required for adding a comment',
+                    data: {},
+                });
+            }
+
+            let attachmentPaths = [];
+            if (files && files.length > 0) {
+                attachmentPaths = files.map(file => `uploads/${file.filename}`);
+            }
+
+            const newComment = await InternalComments.create({
+                user_id: parseInt(user_id, 10),
+                user_type: userTypeMap[user_type],
+                internal_id: parseInt(internal_id, 10),
+                comment,
+                attachment: attachmentPaths.length > 0 ? attachmentPaths : null,
+            });
+
+            commentId = newComment.id;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await Internal.update(updates, { where: { id: task_id } });
+        }
+
+        const updatedTask = await Internal.findOne({
+            where: { id: task_id },
+            attributes: ['id', 'subject', 'status', 'dueDate', 'staff_id', 'description', 'attachment'],
+            raw: true,
+        });
+
+        return res.status(200).json({
+            status: true,
+            message: 'Task updated successfully',
+            data: {
+                id: updatedTask.id,
+                subject: updatedTask.subject,
+                status: reverseStatusMap[updatedTask.status],
+                dueDate: updatedTask.dueDate,
+                staff_id: updatedTask.staff_id,
+                description: updatedTask.description,
+                attachment: updatedTask.attachment,
+                comment_id: commentId
+            },
+        });
+    } catch (error) {
+        console.error('Edit task error:', {
+            message: error.message,
+            stack: error.stack,
+            files: req.files ? req.files.map(f => f.originalname) : 'No files'
+        });
+        if (error.message.includes('Invalid file format')) {
+            return res.status(400).json({
+                status: false,
+                message: error.message,
+                data: {},
+            });
+        }
+        if (error.code === 'LIMIT_UNEXPECTED_FIELD') {
+            return res.status(400).json({
+                status: false,
+                message: 'Unexpected field in file upload. Use "files[]" as the field name.',
+                data: {},
+            });
+        }
         return res.status(500).json({
             status: false,
             message: 'Server error',

@@ -1,86 +1,9 @@
 
 
 103.83.107.181:3000
-1.login
+Aa API vala server login details 
+-> Putty thi login thvanu 
 
-->Select Admin to check user table to username, password
-->select staff to check staff table to email, password
-
-
-2.Task internal
-
-->All Task = To internal all record show
-->pending Task = to internal table to check status = 0
-->Proccessing Task = to internal table to check status = 1
-->Waiting For Customer Task = to internal table to check status = 2
-->Done Task = to internal table to check status = 3
-->Close Task = to internal table to check status = 4
-
-
-[second page to like i click to pending to show pending listing page]
-
-
-3.pending List
-
-->Compony Name =  internal to companyName  
-->Created by =  task_internal_logs to is_created
-->Due Date = internal to dueDate
-->status = internal to status
-
-
-4. pending Details
-
-->subject = internal to subject
-->Message = internal to create new field is message
-->Created By = task_internal_logs to is_created
-->Due Date = internal to dueDate
-->asssign to =  internal to staff_id
-->status =  internal to status
-->asssign from = task_internal_logs to 
-->Changed By = task_internal_logs to 
-->Changed time = task_internal_logs to 
-->asssign to = task_internal_logs to 
-->comments = internal_comments to comment
-->comments craeted by = internal_comments to  user_id  and user_type 
-->comments time =   date_created
-->Attachments = internal to create new field is attachments 
-->New Comments save to store = internal_comments
-
-
-
-
-
-now in this api we need to some modification 
-user also send userType:staff or users
-if user send users then we need to check users. table 
-if user send staff then we need to check staff table
-
-this above for find name  assign_to_staff and assign_to
-in. this. we get id of this user with comma seprated 
-we need to find name of this user from usertype
-we need to give in api username and
-
-
-
-
-
-
-
-
-
-
-now we neeed to create api for task detail 
-in this we need to get some data from table 
-first we need to get from internal table 
-user will send task status in body we need to get and find perticuler task based on status from internal table with colum name status 
-if status = 0 then Pending 
-status. = 1 then  Proccessing
-status = 2 then  Waiting For Customer Task
-status = 3 then Done
-status = 4 then Close 
-based on this we need to send to user in respoce 
-
-also we need to send subject and dueDate also
-and also we. need to send a name of user also 
-this name we need to find from. internal_comments table 
-in this table we need to find the internal table id colom name is internal_id in this table so we need to find the
+103.83.107.181
+user: grid1
+password: grid@123
