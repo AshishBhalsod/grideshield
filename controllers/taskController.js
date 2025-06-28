@@ -1,4 +1,4 @@
-const { Internal,TaskInternalLogs, User, Staff ,InternalComments} = require('../models');
+const { Internal, TaskInternalLogs, User, Staff, InternalComments } = require('../models');
 const path = require('path');
 
 
@@ -41,7 +41,7 @@ const fetchUsernames = async (ids, userType) => {
         attributes: ['id', field],
         raw: true,
     });
-console.log(users,idArray)
+    console.log(users, idArray)
     return idArray.map(id => {
         const user = users.find(u => u.id === id);
         return {
@@ -83,7 +83,7 @@ exports.getTaskCounts = async (req, res) => {
         });
 
         // Add totalCount entry
-        statusMap.push({ name: 'totalCount', id: null, totalCount });
+         statusMap.push({ name: 'totalCount', id: -1, totalCount });
 
         // Return response
         return res.status(200).json({
@@ -210,7 +210,6 @@ exports.addTask = async (req, res) => {
 };
 
 
-
 exports.getTaskList = async (req, res) => {
     try {
         // Validate request body
@@ -225,10 +224,10 @@ exports.getTaskList = async (req, res) => {
         const { status } = req.body;
 
         // Validate status
-        if (status === undefined || ![0, 1, 2, 3, 4].includes(Number(status))) {
+        if (status === undefined || ![-1, 0, 1, 2, 3, 4].includes(Number(status))) {
             return res.status(400).json({
                 status: false,
-                message: 'status is required and must be one of: 0, 1, 2, 3, 4',
+                message: 'status is required and must be one of: -1, 0, 1, 2, 3, 4',
                 data: [],
             });
         }
@@ -242,10 +241,12 @@ exports.getTaskList = async (req, res) => {
             4: 'Close'
         };
 
-        // Query internal table
+        // Query internal table with sorting by created_at DESC
+        const whereClause = Number(status) === -1 ? {} : { status: Number(status) };
         const tasks = await Internal.findAll({
-            where: { status: Number(status) },
-            attributes: ['id', 'status', 'subject', 'dueDate', 'inquiry_id'],
+            where: whereClause,
+            attributes: ['id', 'status', 'subject', 'dueDate', 'inquiry_id', 'createdBy'],
+            order: [['createdBy', 'DESC']],
             raw: true,
         });
 
@@ -259,11 +260,12 @@ exports.getTaskList = async (req, res) => {
 
             return {
                 id: task.id,
-                status: statusMap[task.status],
+                status: statusMap[task.status] || 'Unknown',
                 subject: task.subject,
                 dueDate: task.dueDate,
                 inquiry_id: task.inquiry_id,
                 username: log ? log.is_created : null,
+                createdBy: task.createdBy
             };
         }));
 
@@ -281,7 +283,6 @@ exports.getTaskList = async (req, res) => {
         });
     }
 };
-
 
 
 exports.getTaskDetail = async (req, res) => {
@@ -350,30 +351,38 @@ exports.getTaskDetail = async (req, res) => {
             raw: true,
         });
 
-        // Fetch usernames for assign_to_staff (latest log)
-        const latestLog = logs[logs.length - 1];
-        let assignToStaff = [];
-        if (latestLog && latestLog.new_staff_id) {
-            assignToStaff = await fetchUsernames(latestLog.new_staff_id, userType);
-        }
+        // Fetch comments from internal_comments
+        const comments = await InternalComments.findAll({
+            where: { internal_id: task_id },
+            attributes: ['user_id', 'user_type', 'comment', 'date_created', 'attachment'],
+            order: [['date_created', 'ASC']],
+            raw: true,
+        });
+
+        // Map logs to include all assign_from, changed_by, changed_time, assign_to_staff
+        const logDetails = await Promise.all(logs.map(async (log) => {
+            const assignToStaff = log.new_staff_id ? await fetchUsernames(log.new_staff_id, userType) : [];
+            return {
+                assign_from: log.is_created,
+                changed_by: log.changed_by,
+                changed_time: log.change_time,
+                assign_to_staff: assignToStaff
+            };
+        }));
 
         // Prepare response data
-        const firstLog = logs[0] || null;
         const taskDetail = {
             subject: task.subject,
             status: statusMap[task.status] || 'Unknown',
-            created_date: firstLog ? firstLog.change_time : null,
             due_date: task.dueDate,
             assign_to: assignTo,
-            assign_from: firstLog ? firstLog.is_created : null,
-            changed_by: latestLog ? latestLog.changed_by : null,
-            changed_time: latestLog ? latestLog.change_time : null,
-            assign_to_staff: assignToStaff,
-            comments_attachments: logs.map(log => ({
-                name: log.is_created,
-                comment: task.description,
-                comment_date: log.change_time,
-                attachments: task.attachment ? JSON.parse(task.attachment)  : []
+            logs: logDetails,
+            comments_attachments: comments.map(comment => ({
+                name: comment.user_id,
+                user_type: reverseUserTypeMap[comment.user_type] || 'Unknown',
+                comment: comment.comment,
+                comment_date: comment.created_at,
+                attachments: comment.attachment ? JSON.parse(comment.attachment) : []
             }))
         };
 
@@ -440,7 +449,6 @@ exports.editTask = async (req, res) => {
                     data: {},
                 });
             }
-            console.log(staffIds)
             updates.staff_id = staff_id;
         }
 
@@ -469,7 +477,15 @@ exports.editTask = async (req, res) => {
 
             commentId = newComment.id;
         }
-
+        if (staff_id) {
+            await TaskInternalLogs.create({
+                internal_id: task_id,
+                is_created: req.user.firstname,
+                old_staff_id: staff_id,
+                new_staff_id: staff_id,
+                changed_by: req.user.firstname,
+            });
+        }
         if (Object.keys(updates).length > 0) {
             await Internal.update(updates, { where: { id: task_id } });
         }
