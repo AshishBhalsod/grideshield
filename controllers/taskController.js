@@ -41,7 +41,6 @@ const fetchUsernames = async (ids, userType) => {
         attributes: ['id', field],
         raw: true,
     });
-    console.log(users, idArray)
     return idArray.map(id => {
         const user = users.find(u => u.id === id);
         return {
@@ -49,6 +48,15 @@ const fetchUsernames = async (ids, userType) => {
             username: user ? user[field] : null
         };
     });
+};
+const fetchCommentUserName = async (user_id, user_type) => {
+    const Model = user_type === 2 ? Staff : User;
+    const user = await Model.findOne({
+        where: { id: user_id },
+        attributes: ['firstname'],
+        raw: true,
+    });
+    return user ? user.firstname : 'Unknown';
 };
 
 exports.getTaskCounts = async (req, res) => {
@@ -285,6 +293,124 @@ exports.getTaskList = async (req, res) => {
 };
 
 
+// exports.getTaskDetail = async (req, res) => {
+//     try {
+//         // Validate request body
+//         if (!req.body || Object.keys(req.body).length === 0) {
+//             return res.status(400).json({
+//                 status: false,
+//                 message: 'Request body is empty',
+//                 data: {},
+//             });
+//         }
+
+//         const { task_id, userType } = req.body;
+
+//         // Validate task_id
+//         if (!task_id || !/^\d+$/.test(task_id) || task_id <= 0) {
+//             return res.status(400).json({
+//                 status: false,
+//                 message: 'task_id is required and must be a positive integer',
+//                 data: {},
+//             });
+//         }
+
+//         // Validate userType
+//         if (!userType || !['staff', 'users'].includes(userType)) {
+//             return res.status(400).json({
+//                 status: false,
+//                 message: 'userType is required and must be "staff" or "users"',
+//                 data: {},
+//             });
+//         }
+
+//         // Status mapping
+//         const statusMap = {
+//             0: 'Pending',
+//             1: 'Processing',
+//             2: 'Waiting For Customer Task',
+//             3: 'Done',
+//             4: 'Close'
+//         };
+
+//         // Fetch task from internal table
+//         const task = await Internal.findOne({
+//             where: { id: task_id },
+//             attributes: ['id', 'subject', 'status', 'dueDate', 'staff_id', 'description', 'attachment','createdBy'],
+//             raw: true,
+//         });
+
+//         if (!task) {
+//             return res.status(404).json({
+//                 status: false,
+//                 message: 'Task not found',
+//                 data: {},
+//             });
+//         }
+
+//         // Fetch usernames for assign_to
+//         const assignTo = await fetchUsernames(task.staff_id, userType);
+
+//         // Fetch logs from task_internal_logs
+//         const logs = await TaskInternalLogs.findAll({
+//             where: { internal_id: task_id },
+//             attributes: ['is_created', 'changed_by', 'change_time', 'new_staff_id'],
+//             order: [['change_time', 'ASC']],
+//             raw: true,
+//         });
+
+//         // Fetch comments from internal_comments
+//         const comments = await InternalComments.findAll({
+//             where: { internal_id: task_id },
+//             attributes: ['user_id', 'user_type', 'comment', 'date_created', 'attachment'],
+//             order: [['date_created', 'ASC']],
+//             raw: true,
+//         });
+
+//         // Map logs to include all assign_from, changed_by, changed_time, assign_to_staff
+//         const logDetails = await Promise.all(logs.map(async (log) => {
+//             const assignToStaff = log.new_staff_id ? await fetchUsernames(log.new_staff_id, userType) : [];
+//             return {
+//                 assign_from: log.is_created,
+//                 changed_by: log.changed_by,
+//                 changed_time: log.change_time,
+//                 assign_to_staff: assignToStaff
+//             };
+//         }));
+
+//         // Prepare response data
+//         const taskDetail = {
+//             subject: task.subject,
+//             description:task.description,
+//             attachment:task.attachment ? JSON.parse(task.attachment):[],
+//             createdBy:task.createdBy,
+//             status: statusMap[task.status] || 'Unknown',
+//             due_date: task.dueDate,
+//             assign_to: assignTo,
+//             logs: logDetails,
+//             comments_attachments: comments.map(comment => ({
+//                 name: comment.user_id,
+//                 user_type: reverseUserTypeMap[comment.user_type] || 'Unknown',
+//                 comment: comment.comment,
+//                 comment_date: comment.date_created,
+//                 attachments: comment.attachment ? JSON.parse(comment.attachment) : []
+//             }))
+//         };
+
+//         return res.status(200).json({
+//             status: true,
+//             message: 'Task details retrieved successfully',
+//             data: taskDetail,
+//         });
+//     } catch (error) {
+//         console.error('Get task detail error:', error);
+//         return res.status(500).json({
+//             status: false,
+//             message: 'Server error',
+//             data: {},
+//         });
+//     }
+// };
 exports.getTaskDetail = async (req, res) => {
     try {
         // Validate request body
@@ -328,7 +454,7 @@ exports.getTaskDetail = async (req, res) => {
         // Fetch task from internal table
         const task = await Internal.findOne({
             where: { id: task_id },
-            attributes: ['id', 'subject', 'status', 'dueDate', 'staff_id', 'description', 'attachment'],
+            attributes: ['id', 'subject', 'status', 'dueDate', 'staff_id', 'description', 'attachment', 'createdBy'],
             raw: true,
         });
 
@@ -370,20 +496,29 @@ exports.getTaskDetail = async (req, res) => {
             };
         }));
 
+        // Fetch usernames for comments
+        const commentsWithNames = await Promise.all(comments.map(async (comment) => {
+            const name = await fetchCommentUserName(comment.user_id, comment.user_type);
+            return {
+                name,
+                user_type: reverseUserTypeMap[comment.user_type] || 'Unknown',
+                comment: comment.comment,
+                comment_date: comment.date_created,
+                attachments: comment.attachment ? JSON.parse(comment.attachment) : []
+            };
+        }));
+
         // Prepare response data
         const taskDetail = {
             subject: task.subject,
+            description: task.description,
+            attachment: task.attachment ? JSON.parse(task.attachment) : [],
+            createdBy: task.createdBy,
             status: statusMap[task.status] || 'Unknown',
             due_date: task.dueDate,
             assign_to: assignTo,
             logs: logDetails,
-            comments_attachments: comments.map(comment => ({
-                name: comment.user_id,
-                user_type: reverseUserTypeMap[comment.user_type] || 'Unknown',
-                comment: comment.comment,
-                comment_date: comment.created_at,
-                attachments: comment.attachment ? JSON.parse(comment.attachment) : []
-            }))
+            comments_attachments: commentsWithNames
         };
 
         return res.status(200).json({
