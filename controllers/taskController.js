@@ -91,7 +91,7 @@ exports.getTaskCounts = async (req, res) => {
         });
 
         // Add totalCount entry
-         statusMap.push({ name: 'totalCount', id: -1, totalCount });
+        statusMap.push({ name: 'totalCount', id: -1, totalCount });
 
         // Return response
         return res.status(200).json({
@@ -152,7 +152,14 @@ exports.addTask = async (req, res) => {
                 data: {},
             });
         }
-
+        // Validate usertype
+        if (!req.user.usertype || !['staff', 'user'].includes(req.user.usertype)) {
+            return res.status(400).json({
+                status: false,
+                message: 'req.user.usertype must be "staff" or "user"',
+                data: {},
+            });
+        }
         // Process file paths
         let attachmentPaths = [];
         if (files && files.length > 0) {
@@ -180,6 +187,14 @@ exports.addTask = async (req, res) => {
             old_staff_id: staff_id,
             new_staff_id: staff_id,
             changed_by: req.user.firstname,
+        });
+         // Create internal_comments entry
+        await InternalComments.create({
+            user_id: parseInt(admin_id, 10),
+            user_type: userTypeMap[req.user.usertype],
+            internal_id: task.id,
+            comment: message,
+            attachment: attachmentPaths.length > 0 ? attachmentPaths : null,
         });
 
         // Return response
