@@ -119,3 +119,48 @@ exports.getTaskDetail = async (req, res) => {
         });
     }
 };
+
+
+
+
+View Inquiry
+
+Inquiry No: 1193
+  (From inquiry table → field: id)
+
+Service Plan: NO SELECTED
+  (From service_plan table → match with inquiry.servicePlan as ID → get service_plan.name)
+
+Company Name: ATHA ENERGIES PRIVET LIMITED
+  (From inquiry table → field: companyName)
+
+Name: BHAVIN RATHOD
+  (From inquiry table → field: name)
+
+Mobile No: -
+  (From inquiry table → field: phone)
+
+Status: CRM
+  (From inquiry table → field: status → match id in inquiry_category table → get inquiry_category.name)
+
+Sub Category: BOQ
+  (From inquiry table → field: sub_status → match id in inquiry_category_sub table → get subcategory_name)
+
+City: Jambusar
+  (From inquiry table → field: city)
+
+State: GUJARAT
+  (From inquiry table → field: state)
+
+Inquiry Source: -
+  (From inquiry table → field: inquiry_source)
+
+Product/Inquiry Name: RTU+AWS+ILL
+  (From inquiry table → field: inquiry_name)
+
+Mail ID: [procure@athaenergies.com](mailto:procure@athaenergies.com)
+  (From inquiry table → field: mail_id)
+
+Document List:
+  (From documents table where inquiry_id = 1193 AND documentType = 2) →
+  SELECT  FROM documents WHERE inquiry_id = 1193 AND documentType = 2

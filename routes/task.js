@@ -17,5 +17,6 @@ router.all('/task_list', auth, restrictMethods('POST'), taskController.getTaskLi
 router.all('/task_list_detail', auth, restrictMethods('POST'), taskController.getTaskDetail);
 // Task  Edit
 router.all('/edit', upload, auth, restrictMethods('POST'), taskController.editTask);
-
+//view Inquiery
+router.post('/view_inquiry', auth, restrictMethods('POST'), taskController.viewInquiry);
 module.exports = router;

@@ -1,4 +1,4 @@
-const { Internal, TaskInternalLogs, User, Staff, InternalComments } = require('../models');
+const { Internal, TaskInternalLogs, User, Staff, InternalComments,Inquiry, ServicePlan, InquiryCategory, InquiryCategorySub, Documents } = require('../models');
 const path = require('path');
 
 
@@ -680,6 +680,117 @@ exports.editTask = async (req, res) => {
                 data: {},
             });
         }
+        return res.status(500).json({
+            status: false,
+            message: 'Server error',
+            data: {},
+        });
+    }
+};
+
+
+exports.viewInquiry = async (req, res) => {
+    try {
+        // Validate request body
+        if (!req.body || Object.keys(req.body).length === 0) {
+            return res.status(400).json({
+                status: false,
+                message: 'Request body is empty',
+                data: {},
+            });
+        }
+
+        const { inquiry_id } = req.body;
+
+        // Validate inquiry_id
+        if (!inquiry_id || !/^\d+$/.test(inquiry_id) || inquiry_id <= 0) {
+            return res.status(400).json({
+                status: false,
+                message: 'inquiry_id is required and must be a positive integer',
+                data: {},
+            });
+        }
+
+        // Fetch inquiry from inquiry table
+        const inquiry = await Inquiry.findOne({
+            where: { id: inquiry_id },
+            attributes: ['companyName', 'name', 'phone', 'city', 'state', 'inquiry_source', 'inquiry_name', 'mail_id', 'status', 'sub_status', 'servicePlan'],
+            raw: true,
+        });
+
+        if (!inquiry) {
+            return res.status(404).json({
+                status: false,
+                message: 'Inquiry not found',
+                data: {},
+            });
+        }
+
+        // Fetch service plan details
+        let servicePlan = {};
+        if (inquiry.servicePlan && /^\d+$/.test(inquiry.servicePlan)) {
+            const service = await ServicePlan.findOne({
+                where: { id: parseInt(inquiry.servicePlan, 10) },
+                attributes: ['id', 'name'],
+                raw: true,
+            });
+            servicePlan = service ? { id: service.id, name: service.name } : { id: parseInt(inquiry.servicePlan, 10), name: 'Unknown' };
+        } else {
+            servicePlan = { id: null, name: null };
+        }
+
+        // Fetch status (inquiry_category.name)
+        let statusName = 'Unknown';
+        if (inquiry.status) {
+            const category = await InquiryCategory.findOne({
+                where: { id: inquiry.status },
+                attributes: ['name'],
+                raw: true,
+            });
+            statusName = category ? category.name : 'Unknown';
+        }
+
+        // Fetch sub_status (inquiry_category_sub.subcategory_name)
+        let subStatusName = 'Unknown';
+        if (inquiry.sub_status) {
+            const subCategory = await InquiryCategorySub.findOne({
+                where: { id: inquiry.sub_status },
+                attributes: ['subcategory_name'],
+                raw: true,
+            });
+            subStatusName = subCategory ? subCategory.subcategory_name : 'Unknown';
+        }
+
+        // Fetch documents with documentType = 2
+        const documents = await Documents.findAll({
+            where: { inquiry_id, documentType: 2 },
+            attributes: ['id', 'inquiry_id', 'filename', 'title', 'uploaded_by', 'documentType', 'CreatedDate'],
+            raw: true,
+        });
+
+        // Prepare response data
+        const inquiryDetail = {
+            companyName: inquiry.companyName,
+            name: inquiry.name,
+            phone: inquiry.phone,
+            city: inquiry.city,
+            state: inquiry.state,
+            inquiry_source: inquiry.inquiry_source,
+            inquiry_name: inquiry.inquiry_name,
+            mail_id: inquiry.mail_id,
+            status: statusName,
+            sub_status: subStatusName,
+            servicePlan,
+            documentList: documents
+        };
+
+        return res.status(200).json({
+            status: true,
+            message: 'Inquiry details retrieved successfully',
+            data: inquiryDetail,
+        });
+    } catch (error) {
+        console.error('View inquiry error:', error);
         return res.status(500).json({
             status: false,
             message: 'Server error',
