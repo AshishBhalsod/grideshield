@@ -1,7 +1,7 @@
 const { Internal, TaskInternalLogs, User, Staff, InternalComments,Inquiry, ServicePlan, InquiryCategory, InquiryCategorySub, Documents } = require('../models');
 const path = require('path');
 
-
+const { Op } = require('sequelize');
 const statusMap = {
     'Pending': 0,
     'Processing': 1,
@@ -61,8 +61,42 @@ const fetchCommentUserName = async (user_id, user_type) => {
 
 exports.getTaskCounts = async (req, res) => {
     try {
+        // Validate req.user
+        if (!req.user || !req.user.usertype || !['users', 'staff'].includes(req.user.usertype)) {
+            return res.status(400).json({
+                status: false,
+                message: 'Invalid or missing user type',
+                data: [],
+            });
+        }
+
+        if (!req.user.id || !/^\d+$/.test(req.user.id) || parseInt(req.user.id, 10) <= 0) {
+            return res.status(400).json({
+                status: false,
+                message: 'Invalid or missing user ID',
+                data: [],
+            });
+        }
+
+        // Initialize query options
+        let whereClause = {};
+        if (req.user.usertype === 'staff') {
+            const userId = req.user.id;
+            whereClause = {
+                staff_id: {
+                    [Op.or]: [
+                        { [Op.eq]: userId },
+                        { [Op.like]: `${userId},%` },
+                        { [Op.like]: `%,${userId},%` },
+                        { [Op.like]: `%,${userId}` }
+                    ]
+                }
+            };
+        }
+
         // Query counts for each status
         const counts = await Internal.findAll({
+            where: whereClause,
             attributes: [
                 'status',
                 [Internal.sequelize.fn('COUNT', Internal.sequelize.col('id')), 'total'],
@@ -100,7 +134,11 @@ exports.getTaskCounts = async (req, res) => {
             data: statusMap,
         });
     } catch (error) {
-        console.error('Task count error:', error);
+        console.error('Task count error:', {
+            message: error.message,
+            stack: error.stack,
+            user: req.user
+        });
         return res.status(500).json({
             status: false,
             message: 'Server error',
@@ -108,6 +146,7 @@ exports.getTaskCounts = async (req, res) => {
         });
     }
 };
+
 
 
 exports.addTask = async (req, res) => {
